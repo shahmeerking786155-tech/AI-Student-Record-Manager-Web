@@ -1,0 +1,18 @@
+[
+  {
+    "id": "3210628",
+    "name": "waleed khan",
+    "class_name": "generative ai",
+    "subjects": [
+      "python",
+      "maths"
+    ],
+    "marks": [
+      100.0,
+      80.0
+    ],
+    "total": 180.0,
+    "average": 90.0,
+    "grade": "A"
+  }
+]

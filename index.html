@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AI Student Record Manager</title>
+<style>
+:root{font-family:Inter,Segoe UI,Arial,sans-serif;color:#172033;background:#f3f6fb}
+*{box-sizing:border-box}body{margin:0}.top{background:linear-gradient(120deg,#172554,#2563eb);color:white;padding:28px max(20px,calc((100% - 1120px)/2))}
+.top h1{margin:0 0 6px;font-size:28px}.top p{margin:0;color:#dbeafe}
+main{max-width:1120px;margin:24px auto;padding:0 18px;display:grid;grid-template-columns:340px 1fr;gap:20px}
+.panel{background:white;border:1px solid #e3e9f2;border-radius:14px;padding:20px;box-shadow:0 5px 18px #1725540b}
+h2{font-size:18px;margin:0 0 16px}.field{margin-bottom:12px}label{display:block;font-size:13px;font-weight:650;margin-bottom:5px;color:#475569}
+input,textarea{width:100%;border:1px solid #cbd5e1;border-radius:8px;padding:10px;font:inherit}input:focus,textarea:focus{outline:2px solid #bfdbfe;border-color:#2563eb}
+button{border:0;border-radius:8px;padding:10px 13px;background:#2563eb;color:white;font-weight:650;cursor:pointer}button.secondary{background:#e8eef8;color:#1e3a8a}button.danger{background:#dc2626}button:disabled{opacity:.5;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.hint{font-size:12px;color:#64748b;margin-top:5px}
+.toolbar{display:flex;gap:8px;margin-bottom:14px}.toolbar input{flex:1}
+table{width:100%;border-collapse:collapse;font-size:13px}th,td{text-align:left;padding:11px 8px;border-bottom:1px solid #edf1f6}th{color:#64748b}tbody tr{cursor:pointer}tbody tr:hover{background:#f8fafc}.selected{background:#eff6ff}
+.result{background:#f8fafc;border-radius:9px;padding:12px;white-space:pre-wrap;font-size:14px;min-height:48px;margin-top:12px}
+.stats{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.stat{background:#eff6ff;border-radius:8px;padding:8px 12px;font-size:13px}
+@media(max-width:800px){main{grid-template-columns:1fr}.panel{min-width:0}.table-wrap{overflow:auto}}
+</style></head>
+<body>
+<header class="top"><h1>AI Student Record Manager</h1><p>Manage student records, calculate grades and get AI-powered study guidance.</p></header>
+<main>
+<section class="panel">
+<h2 id="formTitle">Add Student</h2>
+<form id="studentForm">
+<div class="field"><label for="sid">Student ID</label><input id="sid" required placeholder="e.g. STU001"></div>
+<div class="field"><label for="name">Student Name</label><input id="name" required placeholder="Full name"></div>
+<div class="field"><label for="className">Class / Semester</label><input id="className" required placeholder="e.g. Semester 2"></div>
+<div class="field"><label for="subjects">Subjects (comma separated)</label><input id="subjects" required placeholder="Python, Mathematics, English"></div>
+<div class="field"><label for="marks">Marks in same order (0–100)</label><input id="marks" required placeholder="88, 76, 92"></div>
+<p class="hint">Enter one mark for each subject. Student ID cannot be changed when updating.</p>
+<div class="actions"><button id="saveBtn">Add Student</button><button type="button" class="secondary" id="clearBtn">Clear</button><button type="button" class="secondary" id="updateBtn" disabled>Update</button><button type="button" class="danger" id="deleteBtn" disabled>Delete</button></div>
+</form>
+</section>
+<section class="panel">
+<h2>Student Records</h2>
+<div class="toolbar"><input id="search" placeholder="Search by student name or ID"><button id="searchBtn">Search</button><button class="secondary" id="allBtn">Show All</button></div>
+<div class="table-wrap"><table><thead><tr><th>ID</th><th>Name</th><th>Class</th><th>Average</th><th>Grade</th></tr></thead><tbody id="records"></tbody></table></div>
+<div class="stats" id="stats"></div>
+<h2 style="margin-top:20px">AI Learning Assistant</h2>
+<div class="actions"><button id="analyzeBtn" class="secondary" disabled>Analyze Performance</button><button id="tipsBtn" class="secondary" disabled>Generate Study Tips</button></div>
+<div class="result" id="aiResult">Select a student, then choose an AI feature. Add a Groq API key in .env to enable AI.</div>
+</section>
+</main>
+<script>
+let students=[], selectedId=null, visible=[];
+const $=id=>document.getElementById(id);
+async function api(url, options={}){const r=await fetch(url,{headers:{'Content-Type':'application/json'},...options});const d=await r.json();if(!r.ok)throw Error(d.error||'Request failed');return d}
+function parseForm(){const subjects=$('subjects').value.split(',').map(x=>x.trim()).filter(Boolean);const raw=$('marks').value.split(',').map(x=>x.trim());if(!subjects.length||raw.length!==subjects.length||raw.some(x=>x===''))throw Error('Enter one mark for each subject.');const marks=raw.map(Number);if(marks.some(x=>!Number.isFinite(x)||x<0||x>100))throw Error('Marks must be numbers from 0 to 100.');return {name:$('name').value.trim(),class_name:$('className').value.trim(),subjects,marks}}
+function clearForm(){ $('studentForm').reset();$('sid').disabled=false;selectedId=null;$('formTitle').textContent='Add Student';$('saveBtn').disabled=false;$('updateBtn').disabled=true;$('deleteBtn').disabled=true;$('analyzeBtn').disabled=true;$('tipsBtn').disabled=true;$('aiResult').textContent='Select a student, then choose an AI feature.';render()}
+function selectStudent(s){selectedId=s.id;$('sid').value=s.id;$('sid').disabled=true;$('name').value=s.name;$('className').value=s.class_name;$('subjects').value=s.subjects.join(', ');$('marks').value=s.marks.join(', ');$('formTitle').textContent='Edit Student';$('saveBtn').disabled=true;$('updateBtn').disabled=false;$('deleteBtn').disabled=false;$('analyzeBtn').disabled=false;$('tipsBtn').disabled=false;$('aiResult').textContent='Selected '+s.name+'. Choose an AI feature.';render()}
+function render(list=students){visible=list;const body=$('records');body.innerHTML='';list.forEach(s=>{const tr=document.createElement('tr');if(s.id===selectedId)tr.className='selected';[s.id,s.name,s.class_name,s.average+'%',s.grade].forEach(v=>{const td=document.createElement('td');td.textContent=v;tr.appendChild(td)});tr.onclick=()=>selectStudent(s);body.appendChild(tr)});$('stats').textContent=`${students.length} student record(s)`}
+async function refresh(){students=await api('/api/students');render()}
+$('studentForm').onsubmit=async e=>{e.preventDefault();try{const data=parseForm();data.id=$('sid').value.trim();await api('/api/students',{method:'POST',body:JSON.stringify(data)});await refresh();clearForm();alert('Student added successfully.')}catch(err){alert(err.message)}};
+$('updateBtn').onclick=async()=>{try{if(!selectedId)return;await api('/api/students/'+encodeURIComponent(selectedId),{method:'PUT',body:JSON.stringify(parseForm())});await refresh();clearForm();alert('Student updated.')}catch(e){alert(e.message)}};
+$('deleteBtn').onclick=async()=>{if(!selectedId||!confirm('Delete this student record?'))return;try{await api('/api/students/'+encodeURIComponent(selectedId),{method:'DELETE'});await refresh();clearForm()}catch(e){alert(e.message)}};
+$('clearBtn').onclick=clearForm;
+$('searchBtn').onclick=()=>{const q=$('search').value.toLowerCase().trim();render(students.filter(s=>s.id.toLowerCase().includes(q)||s.name.toLowerCase().includes(q)))};
+$('allBtn').onclick=()=>{$('search').value='';render()};
+async function ai(action){const s=students.find(x=>x.id===selectedId);if(!s)return;$('aiResult').textContent='Generating response…';try{const d=await api('/api/ai/'+action,{method:'POST',body:JSON.stringify(s)});$('aiResult').textContent=d.result}catch(e){$('aiResult').textContent=e.message}}
+$('analyzeBtn').onclick=()=>ai('analyze');$('tipsBtn').onclick=()=>ai('tips');
+refresh().catch(e=>alert('Could not load records: '+e.message));
+</script></body></html>
